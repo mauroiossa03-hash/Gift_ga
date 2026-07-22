@@ -7,21 +7,27 @@
 
 <!-- ============================================================= -->
 <!--  EDIT THESE TWO LINES with your Supabase project values.       -->
-<!--  (Settings → API → Project URL and anon/public key)            -->
+<!--  (Settings → API Keys → Publishable key; URL is your project)  -->
 <!-- ============================================================= -->
 <script>
-  const SUPABASE_URL  = "https://wrbdffiejmshcnkbqanw.supabase.co";
-  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyYmRmZmllam1zaGNua2JxYW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MjMxMDYsImV4cCI6MjEwMDI5OTEwNn0.6Jk8bGtlp6VS8lHsQ2OHWxZ2cgNt5gPn7MLzNHIydi4";
+  const SUPABASE_URL  = "https://YOUR-PROJECT.supabase.co";
+  const SUPABASE_ANON = "YOUR-PUBLISHABLE-OR-ANON-KEY";
 
-  // Copy tuning (the answers themselves live in Supabase, not here)
+  // On-screen wording. The ANSWERS are NOT here — they live in Supabase.
   const COPY = {
-    intro: "Tomorrow is our birthday. I hid your gift behind three little doors. Two guesses a day — no more. Ready?",
-    doors: [
-      { label:"Door One — What kind of gift is it?", prompt:"Is it a thing you can hold? Or something else entirely…" },
-      { label:"Door Two — In which month?",          prompt:"When do the suitcases come out?" },
-      { label:"Door Three — Where are we going?",     prompt:"Say the place, and the last door opens." },
+    intro: "Happy birthday! This is a riddle for your gift. You'll have two attempts per day to guess the answer.",
+    // Phase 0 = the bluff path (activity). Phase 1 = the real path (trip).
+    phases: [
+      [ // phase 0
+        { label:"Door One — What kind of gift is it?", prompt:"Is it something you can hold? Or something you DO?" },
+        { label:"Door Two — In which month?",          prompt:"When does it happen?" },
+        { label:"Door Three — Which activity is it?",  prompt:"Name the activity. Go on…" },
+      ],
+      [ // phase 1 (after the bluff)
+        { label:"Door One — So… what kind of gift is it, really?", prompt:"Think again. It isn't something you do." },
+        { label:"Door Two — In which month?",                       prompt:"When do the suitcases come out?" },
+      ],
     ],
-    finale: "Three doors, all open. I can't wait to take you there. 🤍",
   };
 </script>
 <!-- ============================================================= -->
@@ -35,14 +41,17 @@
     color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;line-height:1.55}
   .card{width:100%;max-width:560px;background:rgba(255,255,255,.55);backdrop-filter:blur(6px);
     border:1px solid var(--line);border-radius:20px;padding:44px 34px 38px;position:relative;overflow:hidden;
-    box-shadow:0 30px 60px -30px rgba(90,50,40,.35)}
+    box-shadow:0 30px 60px -30px rgba(90,50,40,.35);transition:transform .3s}
   .card::before{content:"";position:absolute;inset:0;pointer-events:none;
     background:radial-gradient(60% 40% at 100% 0%,rgba(232,199,193,.35),transparent 60%),
                radial-gradient(50% 40% at 0% 100%,rgba(201,162,75,.14),transparent 60%)}
+  .card.shake{animation:shake .5s}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
   .eyebrow{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--rose);font-weight:500;margin-bottom:14px}
   h1{font-family:'Fraunces',serif;font-weight:400;font-size:clamp(28px,7vw,40px);line-height:1.05;letter-spacing:-.01em;margin-bottom:16px}
   h1 em{font-style:italic;color:var(--rose)}
-  .prompt{font-family:'Fraunces',serif;font-size:20px;font-weight:300;margin:6px 0 20px;color:#4a3d37}
+  .prompt{font-family:'Fraunces',serif;font-size:20px;font-weight:300;margin:6px 0 20px;color:#4a3d37;min-height:28px}
   p.lede{font-size:15.5px;color:#584a43;margin-bottom:24px}
   .progress{display:flex;gap:8px;margin-bottom:28px}
   .pip{flex:1;height:4px;border-radius:4px;background:var(--line);transition:background .5s}
@@ -68,16 +77,22 @@
   .msg.warm{background:rgba(201,162,75,.14);color:#8a6d1e;border:1px solid rgba(201,162,75,.3)}
   .msg.good{background:rgba(183,110,106,.12);color:#8f4b47;border:1px solid rgba(183,110,106,.3)}
   .msg.good .big{font-family:'Fraunces',serif;font-size:20px;display:block;margin-bottom:4px}
+  .msg.bluff{background:#2b2320;color:#f6efe7;border:1px solid #2b2320}
+  .msg.bluff .big{font-family:'Fraunces',serif;font-size:22px;display:block;margin-bottom:6px;color:#e8c7c1}
   .msg.locked,.msg.err{background:rgba(43,35,32,.06);color:#4a3d37;border:1px solid var(--line)}
   @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .foot{margin-top:26px;font-size:12px;color:#9a887f;text-align:center}
   .foot button{background:none;color:#9a887f;font-size:12px;padding:0;text-decoration:underline}
   .foot button:hover{transform:none}
   .hidden{display:none}
+  /* bluff flash overlay */
+  #flash{position:fixed;inset:0;background:#2b2320;opacity:0;pointer-events:none;z-index:50;transition:opacity .25s}
+  #flash.on{opacity:1}
 </style>
 </head>
 <body>
-  <main class="card">
+  <div id="flash"></div>
+  <main class="card" id="card">
     <div class="eyebrow" id="eyebrow">Happy Birthday</div>
     <h1 id="title">A little <em>game</em> for you</h1>
     <div class="progress hidden" id="progress"></div>
@@ -114,6 +129,7 @@ let signupMode = false;
 const show = (node,on)=> node.classList.toggle('hidden', !on);
 function msg(cls, html){ const m=el('msg'); m.className='msg show '+cls; m.innerHTML=html; }
 function clearMsg(){ el('msg').className='msg'; }
+const doorsFor = phase => COPY.phases[phase] || COPY.phases[0];
 
 // ---------- AUTH ----------
 el('toggleMode').addEventListener('click', ()=>{
@@ -134,7 +150,6 @@ el('authForm').addEventListener('submit', async e=>{
     const { error } = await fn.call(sb.auth, { email, password });
     if(error){ msg('err', error.message); return; }
     if(signupMode){
-      // If email confirmation is OFF, session is active immediately.
       const { data } = await sb.auth.getSession();
       if(!data.session){ msg('good','Account created. Check your email to confirm, then log in.'); signupMode=false; el('authBtn').textContent='Log in'; return; }
     }
@@ -144,8 +159,9 @@ el('authForm').addEventListener('submit', async e=>{
 
 el('logout').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
 
-// ---------- GAME ----------
-function renderProgress(stage, total, solvedAll){
+// ---------- RENDER ----------
+function renderProgress(phase, stage, solvedAll){
+  const total = doorsFor(phase).length;
   const p=el('progress'); p.innerHTML=''; show(p,true);
   for(let i=0;i<total;i++){
     const d=document.createElement('div');
@@ -158,38 +174,48 @@ function renderTries(left){
   for(let i=0;i<2;i++){ const h=document.createElement('span'); h.className='heart'+(i<left?' left':''); t.appendChild(h); }
   const s=document.createElement('span'); s.textContent = left===1?'1 guess left today':left+' guesses left today'; t.appendChild(s);
 }
-
-function paintDoor(stage, triesLeft){
-  const d = COPY.doors[stage];
+function paintDoor(phase, stage, triesLeft){
+  const d = doorsFor(phase)[stage];
+  el('eyebrow').textContent = phase===1 ? 'Second chance' : 'Happy Birthday';
+  el('title').innerHTML = 'A little <em>game</em> for you';
   el('prompt').textContent = d.label;
-  el('lede').textContent = (stage===0) ? COPY.intro : d.prompt;
-  renderProgress(stage, COPY.doors.length, false);
+  el('lede').textContent = (phase===0 && stage===0) ? COPY.intro : d.prompt;
+  renderProgress(phase, stage, false);
   renderTries(triesLeft);
+  show(el('gameForm'),true);
   el('guess').disabled = triesLeft<=0;
   el('guessBtn').disabled = triesLeft<=0;
 }
-
-function paintFinale(){
+function paintFinale(message){
   el('eyebrow').textContent='You did it';
   el('title').innerHTML='Every door, <em>open</em>';
   el('prompt').textContent=''; el('lede').textContent='';
-  renderProgress(COPY.doors.length, COPY.doors.length, true);
+  const total = doorsFor(1).length;
+  renderProgress(1, total, true);
   show(el('gameForm'),false);
-  msg('good','<span class="big">'+COPY.finale+'</span>');
+  msg('good','<span class="big">'+(message||"You'll know on those days when you'll get the flight.")+'</span>');
+}
+
+// dramatic bluff sequence
+async function playBluff(message){
+  el('card').classList.add('shake');
+  el('flash').classList.add('on');
+  el('guess').disabled=true; el('guessBtn').disabled=true;
+  await new Promise(r=>setTimeout(r,450));
+  el('flash').classList.remove('on');
+  el('card').classList.remove('shake');
+  msg('bluff','<span class="big">'+message+'</span>Both of today\'s guesses are gone. Come back tomorrow and start over. 😏');
+  renderTries(0);
 }
 
 async function enterGame(){
   show(el('authForm'),false);
-  show(el('gameForm'),true);
   show(el('foot'),true);
-  el('eyebrow').textContent='Happy Birthday';
-  el('title').innerHTML='A little <em>game</em> for you';
   clearMsg();
-
   const { data, error } = await sb.rpc('get_status');
   if(error){ msg('err','Could not load your game. '+error.message); return; }
   if(data.solved_all){ paintFinale(); return; }
-  paintDoor(data.stage, data.tries_left);
+  paintDoor(data.phase, data.stage, data.tries_left);
   if(data.tries_left<=0){
     msg('locked',"That's both guesses for today. The door stays shut until tomorrow. 🤍");
   }
@@ -204,23 +230,26 @@ el('gameForm').addEventListener('submit', async e=>{
     if(error){ msg('err', error.message); return; }
     el('guess').value='';
 
-    if(data.state==='correct'){
-      renderProgress(data.stage, COPY.doors.length, false);
+    if(data.state==='bluff'){
+      await playBluff(data.message);
+    }
+    else if(data.state==='correct'){
+      renderProgress(data.phase, data.stage, false);
       msg('good','<span class="big">'+data.message+'</span>');
       const b=document.createElement('button'); b.textContent='Open the next door →';
       b.style.marginTop='16px'; b.style.width='100%';
-      b.onclick=()=>{ clearMsg(); paintDoor(data.stage, data.tries_left); };
+      b.onclick=()=>{ clearMsg(); paintDoor(data.phase, data.stage, data.tries_left); };
       el('msg').appendChild(b);
       el('guess').disabled=true; el('guessBtn').disabled=true;
     }
     else if(data.state==='finished'){
       msg('good','<span class="big">'+data.message+'</span>');
-      setTimeout(paintFinale, 1500);
+      setTimeout(()=>paintFinale(data.message), 1600);
     }
     else if(data.state==='wrong'){
       renderTries(data.tries_left);
-      msg('warm', data.warm ? 'Warmer… you\'re circling it. One guess left — make it count.'
-                            : 'Not quite. One guess left today — take your time.');
+      msg('warm', data.warm ? "Warmer… you're circling it. One guess left — make it count."
+                            : "Not quite. One guess left today — take your time.");
     }
     else if(data.state==='locked'){
       renderTries(0);
@@ -232,7 +261,7 @@ el('gameForm').addEventListener('submit', async e=>{
   } finally { if(!el('guess').disabled) el('guessBtn').disabled=false; }
 });
 
-// ---------- boot: resume session if already logged in ----------
+// resume session if already logged in
 (async ()=>{
   const { data } = await sb.auth.getSession();
   if(data.session){ await enterGame(); }
