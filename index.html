@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A Little Game For You</title>
+
+<!-- ============================================================= -->
+<!--  EDIT THESE TWO LINES with your Supabase project values.       -->
+<!--  (Settings → API Keys → Publishable key; URL is your project)  -->
+<!-- ============================================================= -->
+<script>
+  const SUPABASE_URL  = "https://wrbdffiejmshcnkbqanw.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyYmRmZmllam1zaGNua2JxYW53Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3MjMxMDYsImV4cCI6MjEwMDI5OTEwNn0.6Jk8bGtlp6VS8lHsQ2OHWxZ2cgNt5gPn7MLzNHIydi4";
+
+  // On-screen wording. The ANSWERS are NOT here — they live in Supabase.
+  const COPY = {
+    intro: "Happy birthday! This is a riddle for your gift. You'll have two attempts per day to guess the answer.",
+    // Path to the skydiving background video (sits in /public on Vercel).
+    // To host it elsewhere later, just change this one line.
+    bgVideo: "/skydiving.mp4",
+    bgPoster: "/skydiving-poster.jpg",
+    // Phase 0 = the bluff path (activity). Phase 1 = the real path (trip).
+    phases: [
+      [ // phase 0
+        { label:"Door One — What kind of gift is it?", prompt:"Is it something you can hold? Or something you DO?" },
+        { label:"Door Two — In which month?",          prompt:"When does it happen?" },
+        { label:"Door Three — Which activity is it?",  prompt:"Name the activity. Go on…" },
+      ],
+      [ // phase 1 (after the bluff)
+        { label:"Door One — So… what kind of gift is it, really?", prompt:"Think again. It isn't something you do." },
+        { label:"Door Two — In which month?",                       prompt:"When do the suitcases come out?" },
+      ],
+    ],
+  };
+</script>
+<!-- ============================================================= -->
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=Inter:wght@400;500&display=swap');
+  :root{--ink:#2b2320;--paper:#f6efe7;--rose:#b76e6a;--gold:#c9a24b;--line:rgba(43,35,32,.14)}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;
+    background:radial-gradient(120% 80% at 50% -10%,#fbf4ec 0%,var(--paper) 55%,#efe4d8 100%);
+    color:var(--ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;line-height:1.55}
+  .card{width:100%;max-width:560px;background:rgba(255,255,255,.55);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:20px;padding:44px 34px 38px;position:relative;overflow:hidden;
+    box-shadow:0 30px 60px -30px rgba(90,50,40,.35);transition:transform .3s}
+  .card::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(60% 40% at 100% 0%,rgba(232,199,193,.35),transparent 60%),
+               radial-gradient(50% 40% at 0% 100%,rgba(201,162,75,.14),transparent 60%)}
+  .card.shake{animation:shake .5s}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}
+    30%,50%,70%{transform:translateX(-8px)}40%,60%{transform:translateX(8px)}}
+  .eyebrow{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--rose);font-weight:500;margin-bottom:14px}
+  h1{font-family:'Fraunces',serif;font-weight:400;font-size:clamp(28px,7vw,40px);line-height:1.05;letter-spacing:-.01em;margin-bottom:16px}
+  h1 em{font-style:italic;color:var(--rose)}
+  .prompt{font-family:'Fraunces',serif;font-size:20px;font-weight:300;margin:6px 0 20px;color:#4a3d37;min-height:28px}
+  p.lede{font-size:15.5px;color:#584a43;margin-bottom:24px}
+  .progress{display:flex;gap:8px;margin-bottom:28px}
+  .pip{flex:1;height:4px;border-radius:4px;background:var(--line);transition:background .5s}
+  .pip.done{background:var(--gold)}.pip.active{background:var(--rose)}
+  form{display:flex;flex-direction:column;gap:12px}
+  label.fld{font-size:12px;letter-spacing:.04em;color:#7a6a62;margin-bottom:-6px}
+  input{font-family:'Fraunces',serif;font-size:18px;padding:14px 16px;border:1px solid var(--line);
+    border-radius:12px;background:rgba(255,255,255,.7);color:var(--ink);outline:none;width:100%;transition:border-color .2s,box-shadow .2s}
+  input:focus{border-color:var(--rose);box-shadow:0 0 0 4px rgba(183,110,106,.15)}
+  input:disabled{opacity:.55}
+  button{font-family:'Inter';font-weight:500;font-size:15px;padding:14px 18px;border:none;cursor:pointer;
+    border-radius:12px;background:var(--ink);color:var(--paper);transition:transform .12s,opacity .2s}
+  button:hover{transform:translateY(-1px)}button:disabled{opacity:.4;cursor:not-allowed;transform:none}
+  .link{background:none;color:var(--rose);font-size:13px;padding:4px;text-decoration:underline;align-self:center}
+  .link:hover{transform:none}
+  .tries{display:flex;align-items:center;gap:8px;font-size:13px;color:#7a6a62;margin-top:2px}
+  .heart{width:14px;height:14px;background:var(--rose);opacity:.25;border-radius:50%;
+    -webkit-mask:var(--h) center/contain no-repeat;mask:var(--h) center/contain no-repeat;
+    --h:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21s-7-4.35-9.5-8.5C.5 9 2.5 5 6 5c2 0 3.2 1.2 4 2.3C10.8 6.2 12 5 14 5c3.5 0 5.5 4 3.5 7.5C19 16.65 12 21 12 21z"/></svg>')}
+  .heart.left{opacity:1}
+  .msg{margin-top:20px;font-size:15px;padding:15px 17px;border-radius:12px;display:none;animation:rise .4s ease both}
+  .msg.show{display:block}
+  .msg.warm{background:rgba(201,162,75,.14);color:#8a6d1e;border:1px solid rgba(201,162,75,.3)}
+  .msg.good{background:rgba(183,110,106,.12);color:#8f4b47;border:1px solid rgba(183,110,106,.3)}
+  .msg.good .big{font-family:'Fraunces',serif;font-size:20px;display:block;margin-bottom:4px}
+  .msg.bluff{background:#2b2320;color:#f6efe7;border:1px solid #2b2320}
+  .msg.bluff .big{font-family:'Fraunces',serif;font-size:22px;display:block;margin-bottom:6px;color:#e8c7c1}
+  .msg.locked,.msg.err{background:rgba(43,35,32,.06);color:#4a3d37;border:1px solid var(--line)}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .foot{margin-top:26px;font-size:12px;color:#9a887f;text-align:center}
+  .foot button{background:none;color:#9a887f;font-size:12px;padding:0;text-decoration:underline}
+  .foot button:hover{transform:none}
+  .hidden{display:none}
+  /* bluff flash overlay */
+  #flash{position:fixed;inset:0;background:#2b2320;opacity:0;pointer-events:none;z-index:50;transition:opacity .25s}
+  #flash.on{opacity:1}
+  /* skydiving background video (appears at Door 2 of the bluff path) */
+  #bgvideo{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;
+    z-index:-2;opacity:0;transition:opacity 1.2s ease}
+  #bgdim{position:fixed;inset:0;z-index:-1;opacity:0;transition:opacity 1.2s ease;pointer-events:none;
+    background:linear-gradient(180deg,rgba(20,15,12,.35),rgba(20,15,12,.55))}
+  body.video-on #bgvideo{opacity:1}
+  body.video-on #bgdim{opacity:1}
+  /* when the video is on, lift the card so text stays readable over motion */
+  body.video-on .card{background:rgba(255,255,255,.82);box-shadow:0 40px 80px -30px rgba(0,0,0,.6)}
+  @media (prefers-reduced-motion: reduce){ #bgvideo{display:none} }
+</style>
+</head>
+<body>
+  <video id="bgvideo" playsinline muted loop preload="none"></video>
+  <div id="bgdim"></div>
+  <div id="flash"></div>
+  <main class="card" id="card">
+    <div class="eyebrow" id="eyebrow">Happy Birthday</div>
+    <h1 id="title">A little <em>game</em> for you</h1>
+    <div class="progress hidden" id="progress"></div>
+    <p class="prompt" id="prompt"></p>
+    <p class="lede" id="lede"></p>
+
+    <!-- AUTH -->
+    <form id="authForm">
+      <label class="fld">Email</label>
+      <input type="email" id="email" autocomplete="email" placeholder="you@email.com">
+      <label class="fld">Password</label>
+      <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+      <button type="submit" id="authBtn">Log in</button>
+      <button type="button" class="link" id="toggleMode">New here? Create an account</button>
+    </form>
+
+    <!-- GAME -->
+    <form id="gameForm" class="hidden">
+      <input type="text" id="guess" autocomplete="off" placeholder="Type your guess…">
+      <button type="submit" id="guessBtn">Guess</button>
+      <div class="tries" id="tries"></div>
+    </form>
+
+    <div class="msg" id="msg"></div>
+    <div class="foot hidden" id="foot"><button id="logout">log out</button></div>
+  </main>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+const el = id => document.getElementById(id);
+let signupMode = false;
+
+const show = (node,on)=> node.classList.toggle('hidden', !on);
+function msg(cls, html){ const m=el('msg'); m.className='msg show '+cls; m.innerHTML=html; }
+function clearMsg(){ el('msg').className='msg'; }
+const doorsFor = phase => COPY.phases[phase] || COPY.phases[0];
+
+// ---------- background video ----------
+let videoReady = false;
+function ensureVideoLoaded(){
+  const v = el('bgvideo');
+  if(videoReady) return;
+  v.poster = COPY.bgPoster || '';
+  v.src = COPY.bgVideo;
+  v.load();
+  videoReady = true;
+}
+function setVideo(on){
+  const v = el('bgvideo');
+  if(on){
+    ensureVideoLoaded();
+    document.body.classList.add('video-on');
+    const p = v.play(); if(p && p.catch) p.catch(()=>{}); // ignore autoplay rejections
+  }else{
+    document.body.classList.remove('video-on');
+    try{ v.pause(); }catch(e){}
+  }
+}
+// The video plays while she's on the bluff path from Door 2 onward.
+function videoShouldPlay(phase, stage){ return phase===0 && stage>=1; }
+
+// ---------- AUTH ----------
+el('toggleMode').addEventListener('click', ()=>{
+  signupMode = !signupMode;
+  el('authBtn').textContent = signupMode ? 'Create account' : 'Log in';
+  el('toggleMode').textContent = signupMode ? 'Have an account? Log in' : 'New here? Create an account';
+  el('password').setAttribute('autocomplete', signupMode ? 'new-password':'current-password');
+  clearMsg();
+});
+
+el('authForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const email=el('email').value.trim(), password=el('password').value;
+  if(!email||!password) return;
+  el('authBtn').disabled=true;
+  try{
+    const fn = signupMode ? sb.auth.signUp : sb.auth.signInWithPassword;
+    const { error } = await fn.call(sb.auth, { email, password });
+    if(error){ msg('err', error.message); return; }
+    if(signupMode){
+      const { data } = await sb.auth.getSession();
+      if(!data.session){ msg('good','Account created. Check your email to confirm, then log in.'); signupMode=false; el('authBtn').textContent='Log in'; return; }
+    }
+    await enterGame();
+  } finally { el('authBtn').disabled=false; }
+});
+
+el('logout').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
+
+// make sure video is off on the auth screen
+setVideo(false);
+
+// ---------- RENDER ----------
+function renderProgress(phase, stage, solvedAll){
+  const total = doorsFor(phase).length;
+  const p=el('progress'); p.innerHTML=''; show(p,true);
+  for(let i=0;i<total;i++){
+    const d=document.createElement('div');
+    d.className='pip'+((i<stage||solvedAll)?' done':(i===stage?' active':''));
+    p.appendChild(d);
+  }
+}
+function renderTries(left){
+  const t=el('tries'); t.innerHTML='';
+  for(let i=0;i<2;i++){ const h=document.createElement('span'); h.className='heart'+(i<left?' left':''); t.appendChild(h); }
+  const s=document.createElement('span'); s.textContent = left===1?'1 guess left today':left+' guesses left today'; t.appendChild(s);
+}
+function paintDoor(phase, stage, triesLeft){
+  const d = doorsFor(phase)[stage];
+  setVideo(videoShouldPlay(phase, stage));
+  el('eyebrow').textContent = phase===1 ? 'Second chance' : 'Happy Birthday';
+  el('title').innerHTML = 'A little <em>game</em> for you';
+  el('prompt').textContent = d.label;
+  el('lede').textContent = (phase===0 && stage===0) ? COPY.intro : d.prompt;
+  renderProgress(phase, stage, false);
+  renderTries(triesLeft);
+  show(el('gameForm'),true);
+  el('guess').disabled = triesLeft<=0;
+  el('guessBtn').disabled = triesLeft<=0;
+}
+function paintFinale(message){
+  setVideo(false);
+  el('eyebrow').textContent='You did it';
+  el('title').innerHTML='Every door, <em>open</em>';
+  el('prompt').textContent=''; el('lede').textContent='';
+  const total = doorsFor(1).length;
+  renderProgress(1, total, true);
+  show(el('gameForm'),false);
+  msg('good','<span class="big">'+(message||"You'll know on those days when you'll get the flight.")+'</span>');
+}
+
+// dramatic bluff sequence
+async function playBluff(message){
+  el('card').classList.add('shake');
+  el('flash').classList.add('on');
+  el('guess').disabled=true; el('guessBtn').disabled=true;
+  await new Promise(r=>setTimeout(r,450));
+  el('flash').classList.remove('on');
+  el('card').classList.remove('shake');
+  setVideo(false);   // skydiving fantasy over — back to calm
+  msg('bluff','<span class="big">'+message+'</span>Both of today\'s guesses are gone. Come back tomorrow and start over. 😏');
+  renderTries(0);
+}
+
+async function enterGame(){
+  show(el('authForm'),false);
+  show(el('foot'),true);
+  clearMsg();
+  const { data, error } = await sb.rpc('get_status');
+  if(error){ msg('err','Could not load your game. '+error.message); return; }
+  if(data.solved_all){ paintFinale(); return; }
+  paintDoor(data.phase, data.stage, data.tries_left);
+  if(data.tries_left<=0){
+    msg('locked',"That's both guesses for today. The door stays shut until tomorrow. 🤍");
+  }
+}
+
+el('gameForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const val=el('guess').value; if(!val.trim()) return;
+  el('guessBtn').disabled=true;
+  try{
+    const { data, error } = await sb.rpc('make_guess', { guess: val });
+    if(error){ msg('err', error.message); return; }
+    el('guess').value='';
+
+    if(data.state==='bluff'){
+      await playBluff(data.message);
+    }
+    else if(data.state==='correct'){
+      renderProgress(data.phase, data.stage, false);
+      msg('good','<span class="big">'+data.message+'</span>');
+      const b=document.createElement('button'); b.textContent='Open the next door →';
+      b.style.marginTop='16px'; b.style.width='100%';
+      b.onclick=()=>{ clearMsg(); paintDoor(data.phase, data.stage, data.tries_left); };
+      el('msg').appendChild(b);
+      el('guess').disabled=true; el('guessBtn').disabled=true;
+    }
+    else if(data.state==='finished'){
+      msg('good','<span class="big">'+data.message+'</span>');
+      setTimeout(()=>paintFinale(data.message), 1600);
+    }
+    else if(data.state==='wrong'){
+      renderTries(data.tries_left);
+      msg('warm', data.warm ? "Warmer… you're circling it. One guess left — make it count."
+                            : "Not quite. One guess left today — take your time.");
+    }
+    else if(data.state==='locked'){
+      renderTries(0);
+      el('guess').disabled=true; el('guessBtn').disabled=true;
+      msg('locked', (data.warm?'So close — but not quite. ':'Not it. ')+
+        "That's both guesses for today. Try again tomorrow. 🤍");
+    }
+    else if(data.state==='done'){ paintFinale(); }
+  } finally { if(!el('guess').disabled) el('guessBtn').disabled=false; }
+});
+
+// resume session if already logged in
+(async ()=>{
+  const { data } = await sb.auth.getSession();
+  if(data.session){ await enterGame(); }
+})();
+</script>
+</body>
+</html>
