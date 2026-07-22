@@ -20,6 +20,9 @@
     // To host it elsewhere later, just change this one line.
     bgVideo: "skydiving.mp4",
     bgPoster: "skydiving-poster.jpg",
+    // Circus video — plays behind the "you got bluffed" screen (looped).
+    bluffVideo: "circus.mp4",
+    bluffPoster: "circus-poster.jpg",
     // Phase 0 = the bluff path (activity). Phase 1 = the real path (trip).
     phases: [
       [ // phase 0
@@ -147,28 +150,27 @@ function msg(cls, html){ const m=el('msg'); m.className='msg show '+cls; m.inner
 function clearMsg(){ el('msg').className='msg'; }
 const doorsFor = phase => COPY.phases[phase] || COPY.phases[0];
 
-// ---------- background video ----------
-let videoReady = false;
-function ensureVideoLoaded(){
-  const v = el('bgvideo');
-  if(videoReady) return;
-  v.poster = COPY.bgPoster || '';
-  v.src = COPY.bgVideo;
-  v.load();
-  videoReady = true;
-}
-function setVideo(on){
+// ---------- background video (two clips: skydiving + circus) ----------
+let currentClip = null;
+function setVideo(on, clip){
   const v = el('bgvideo');
   if(on){
-    ensureVideoLoaded();
+    const want = clip || 'sky';
+    if(currentClip !== want){
+      if(want === 'circus'){ v.poster = COPY.bluffPoster||''; v.src = COPY.bluffVideo; }
+      else                 { v.poster = COPY.bgPoster||'';    v.src = COPY.bgVideo; }
+      v.load();
+      currentClip = want;
+    }
     document.body.classList.add('video-on');
     const p = v.play(); if(p && p.catch) p.catch(()=>{}); // ignore autoplay rejections
   }else{
     document.body.classList.remove('video-on');
     try{ v.pause(); }catch(e){}
+    currentClip = null;
   }
 }
-// The video plays while she's on the bluff path from Door 2 onward.
+// The skydiving video plays while she's on the bluff path from Door 2 onward.
 function videoShouldPlay(phase, stage){ return phase===0 && stage>=1; }
 
 // ---------- AUTH ----------
@@ -219,7 +221,7 @@ function renderTries(left){
 }
 function paintDoor(phase, stage, triesLeft){
   const d = doorsFor(phase)[stage];
-  setVideo(videoShouldPlay(phase, stage));
+  setVideo(videoShouldPlay(phase, stage), 'sky');
   el('eyebrow').textContent = phase===1 ? 'Second chance' : 'Happy Birthday';
   el('title').innerHTML = 'A little <em>game</em> for you';
   el('prompt').textContent = d.label;
@@ -249,7 +251,7 @@ async function playBluff(message){
   await new Promise(r=>setTimeout(r,450));
   el('flash').classList.remove('on');
   el('card').classList.remove('shake');
-  setVideo(false);   // skydiving fantasy over — back to calm
+  setVideo(true, 'circus');   // skydiving fantasy gone — now the circus plays behind the reveal
   msg('bluff','<span class="big">'+message+'</span>Both of today\'s guesses are gone. Come back tomorrow and start over. 😏');
   renderTries(0);
 }
